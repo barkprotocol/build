@@ -1,120 +1,107 @@
-# BARK NFT
+# BARK Build.ts
 
-A TypeScript class named **BARK** that builds, optimizes, and optionally serializes & base64 encodes a Solana transaction. This class utilizes the `@solana/web3.js` library, providing functionality to construct, optimize, serialize, and encode Solana transactions in an efficient manner.
+## Overview
+
+The BARK Build class provides a TypeScript solution for building, optimizing, serializing, and optionally base64 encoding Solana transactions. Utilizing the `@solana/web3.js` library, this class allows for transaction construction and optimization to meet compute and fee requirements.
 
 ## Features
 
-- **Transaction Building**: Create and manage Solana transactions easily.
-- **Optimization**: Optimize transactions by compressing or refining instructions.
-- **Serialization**: Optionally serialize the transaction for sending to the Solana network.
-- **Base64 Encoding**: Optionally encode the serialized transaction in base64 format for easier transport.
+- **Build Transactions**: Construct Solana transactions with necessary instructions and signers.
+- **Optimize Transactions**: Automatically optimize transactions by adjusting compute units and fees.
+- **Serialize Transactions**: Serialize transactions for submission to the Solana network.
+- **Base64 Encode Transactions**: Encode serialized transactions in Base64 format for easier handling.
 
 ## Installation
 
-Ensure you have `@solana/web3.js` installed in your project:
+Ensure you have Node.js and npm installed. To install the necessary dependencies, run:
 
 ```bash
-npm install @solana/web3.js
+npm install @solana/web3.js bs58
 ```
-
-Add the `BARK` class to your project by copying the `BARK.ts` file into your TypeScript project.
 
 ## Usage
 
-### Importing the Class
+### Import the Class
 
 ```typescript
-import { BARK, TxOptions } from './BARK';
+import build from './build';
 ```
 
-### Example Usage
+### Example
 
-Below is an example of how to use the `BARK` class to create, optimize, and send a Solana transaction.
+Here's a basic example demonstrating how to create, optimize, and submit a Solana transaction:
 
 ```typescript
-import { BARK, TxOptions } from './BARK';
-import { PublicKey, SystemProgram, TransactionInstruction } from '@solana/web3.js';
+// Create your instructions and then:
 
-// RPC and account details
-const rpc = 'https://api.mainnet-beta.solana.com';
-const payer = 'YourFeePayerPublicKeyHere';
-const recipient = new PublicKey('RecipientPublicKeyHere');
-const lamports = 1000;  // Amount to transfer
-
-// Create a transaction instruction
-const instruction = SystemProgram.transfer({
-  fromPubkey: new PublicKey(payer),
-  toPubkey: recipient,
-  lamports,
-});
-
-// Define transaction options
-const _tx_: TxOptions = {
-  rpc: rpc,
-  account: payer,
-  instructions: [instruction],
-  serialize: true,
-  encode: true,
-  priority: "Medium",
+const _tx_ = {
+    rpc: 'https://api.mainnet-beta.solana.com', // required
+    account: 'your-payer-public-key',            // required
+    instructions: [instruction],                 // required
+    signers: [payer],                           // optional
+    priority: 'Medium',                         // optional: 'VeryHigh', 'High', 'Medium', 'Low', 'Min'
+    tolerance: 1.1,                             // optional: float
+    serialize: true,                            // optional: serialize the transaction
+    encode: true,                               // optional: base64 encode the serialized transaction
+    table: [],                                  // optional: instruction tables for advanced use
+    compute: true,                              // optional: optimize compute units
+    fees: true                                  // optional: optimize fees
 };
 
-const bark = new BARK(_tx_);
+(async () => {
+    try {
+        const tx = await build.tx(_tx_);
 
-async function main() {
-  try {
-    // Build, serialize, and possibly encode the transaction
-    const tx = await bark.buildAndSerialize();
+        if (tx.message) {
+            console.error("Error:", tx.message);
+            return;
+        }
 
-    // Check if there's any error in the transaction object
-    if (typeof (tx as any).logs !== 'undefined') {
-      console.log("Error", tx);
-      return;
+        // Sign, serialize, and send the transaction
+        const signed = await provider.signTransaction(tx.transaction);
+        const signature = await connection.sendRawTransaction(signed.serialize(), {
+            skipPreflight: true,
+            maxRetries: 0
+        });
+
+        // Track the transaction status
+        const status = await build.status(_tx_.rpc, signature, 10, 4);
+        console.log("Status:", status);
+
+    } catch (err) {
+        console.error("Error:", err);
     }
-
-    // Sign, serialize, and send the transaction
-    const signed = await provider.signTransaction(tx as Transaction);
-    const signature = await connection.sendRawTransaction(
-      signed.serialize(),
-      { skipPreflight: true, maxRetries: 0 }
-    );
-
-    // Track the transaction status
-    const status = await bark.status(rpc, signature, 10, 4);
-    console.log("Status", status);
-
-  } catch (err) {
-    console.log("Error", err);
-  }
-}
-
-main();
+})();
 ```
-
-### Options
-
-The `TxOptions` interface provides a range of options to customize the transaction:
-
-- `rpc`: **string** (required) - The RPC endpoint URL.
-- `account`: **string** (required) - The account public key to use.
-- `instructions`: **TransactionInstruction[]** (required) - An array of instructions to add to the transaction.
-- `signers`: **Signer[] | false** (optional, default: false) - Signers for the transaction.
-- `serialize`: **boolean** (optional, default: false) - Whether to serialize the transaction.
-- `encode`: **boolean** (optional, default: false) - Whether to base64 encode the serialized transaction.
-- `table`: **any[] | false** (optional, default: false) - Additional table data (not implemented).
-- `tolerance`: **number** (optional, default: 1.1) - Tolerance level for optimizations.
-- `compute`: **boolean** (optional, default: true) - Whether to compute additional data (not implemented).
-- `fees`: **boolean** (optional, default: true) - Whether to calculate fees (not implemented).
-- `priority`: **'VeryHigh' | 'High' | 'Medium' | 'Low' | 'Min'** (optional, default: 'Medium') - Priority level for the transaction.
 
 ### Methods
 
-- `buildAndSerialize`: Builds the transaction, applies optimizations, signs, serializes, and optionally base64 encodes the transaction.
-- `status`: Tracks the transaction status by checking its confirmation on the Solana network.
+- **`status(cluster: string, sig: string, max?: number, int?: number): Promise<string>`**  
+  Monitors the status of a transaction until it is finalized or the maximum wait time is reached.
 
-## Contributing
+- **`ComputeLimit(cluster: string, payer: { publicKey: PublicKey }, instructions: TransactionInstruction[], tolerance: number, blockhash: string, tables?: any[]): Promise<number | { message: string; logs: string[] }>`**  
+  Computes the required compute units for the transaction based on simulation results.
 
-Feel free to fork this repository, submit issues, and make pull requests. Contributions are welcome!
+- **`FeeEstimate(cluster: string, payer: { publicKey: PublicKey }, priorityLevel: PriorityLevel, instructions: TransactionInstruction[], blockhash: string, tables?: any[]): Promise<number>`**  
+  Estimates the fee required for the transaction based on the priority level.
+
+- **`tx(options: TxOptions): Promise<any>`**  
+  Builds and prepares the transaction based on the provided options. Returns a transaction object or an error message.
+
+## Types
+
+- **`PriorityLevel`**: `'VeryHigh' | 'High' | 'Medium' | 'Low' | 'Min'`
+- **`TxOptions`**: Interface for transaction options, including RPC URL, account public key, instructions, signers, priority, and others.
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](https://github.com/barkprotocol/build/blob/main/LICENSE) file for details.
+
+## Contributing
+
+Contributions are welcome! Please follow the standard GitHub process: fork the repository, create a branch, make your changes, and open a pull request.
+
+## Contact
+
+For questions or feedback, please reach out to [@barkprotocol](https://twitter.com/bark_protocol).
+
